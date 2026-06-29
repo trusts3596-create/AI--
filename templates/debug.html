@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>网络调试页面</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #333;
+        }
+        
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 16px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        
+        .card h2 {
+            font-size: 18px;
+            color: #667eea;
+            margin-bottom: 12px;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 8px;
+        }
+        
+        .info-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .info-item:last-child {
+            border-bottom: none;
+        }
+        
+        .info-label {
+            font-weight: 600;
+            color: #666;
+        }
+        
+        .info-value {
+            color: #333;
+            max-width: 200px;
+            word-break: break-all;
+        }
+        
+        .status {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+        
+        .status.success {
+            background: #10B981;
+            color: white;
+        }
+        
+        .status.error {
+            background: #EF4444;
+            color: white;
+        }
+        
+        .status.warning {
+            background: #F59E0B;
+            color: white;
+        }
+        
+        .btn {
+            display: block;
+            width: 100%;
+            padding: 14px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 10px;
+            transition: all 0.3s;
+        }
+        
+        .btn:hover {
+            background: #764ba2;
+            transform: translateY(-2px);
+        }
+        
+        .btn-secondary {
+            background: #6B7280;
+        }
+        
+        .btn-secondary:hover {
+            background: #4B5563;
+        }
+        
+        .error-log {
+            background: #FEF2F2;
+            border: 1px solid #EF4444;
+            border-radius: 8px;
+            padding: 12px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            color: #DC2626;
+        }
+        
+        .progress-bar {
+            height: 4px;
+            background: #E5E7EB;
+            border-radius: 2px;
+            margin: 8px 0;
+            overflow: hidden;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: #667eea;
+            transition: width 0.3s;
+        }
+        
+        .tip {
+            background: #DBEAFE;
+            border-left: 4px solid #3B82F6;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 14px;
+            color: #1E40AF;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 style="color: white; text-align: center; margin-bottom: 24px;">🔍 网络连接诊断</h1>
+        
+        <div class="card">
+            <h2>📱 设备信息</h2>
+            <div id="deviceInfo"></div>
+        </div>
+        
+        <div class="card">
+            <h2>🌐 网络连接状态</h2>
+            <div id="networkStatus"></div>
+        </div>
+        
+        <div class="card">
+            <h2>📄 静态资源加载测试</h2>
+            <div id="resourceTests"></div>
+        </div>
+        
+        <div class="card">
+            <h2>⚡ API连接测试</h2>
+            <div id="apiTests"></div>
+        </div>
+        
+        <button class="btn" onclick="runAllTests()">🔄 重新测试</button>
+        <button class="btn btn-secondary" onclick="goToMainApp()">🚀 访问主应用</button>
+        
+        <div class="card">
+            <h2>💡 解决建议</h2>
+            <div id="suggestions"></div>
+        </div>
+        
+        <div class="card" id="errorLogCard" style="display: none;">
+            <h2>❌ 错误日志</h2>
+            <div class="error-log" id="errorLog"></div>
+        </div>
+    </div>
+
+    <script>
+        const errors = [];
+        const currentUrl = window.location.href;
+        const baseUrl = currentUrl.substring(0, currentUrl.lastIndexOf(':') + 1) + '5000';
+        
+        function logError(error) {
+            errors.push(error);
+            document.getElementById('errorLogCard').style.display = 'block';
+            document.getElementById('errorLog').textContent = errors.join('\n');
+        }
+        
+        function getDeviceInfo() {
+            const deviceInfo = {
+                '设备类型': (() => {
+                    const ua = navigator.userAgent.toLowerCase();
+                    if (/mobile|android|iphone|ipod|blackberry|opera mini|windows phone|iemobile/i.test(ua)) {
+                        if (/tablet|ipad|kindle/i.test(ua)) return '平板';
+                        return '手机';
+                    }
+                    return '桌面';
+                })(),
+                '操作系统': (() => {
+                    const ua = navigator.userAgent;
+                    if (ua.includes('Windows')) return 'Windows';
+                    if (ua.includes('Mac OS')) return 'Mac OS';
+                    if (ua.includes('Linux')) return 'Linux';
+                    if (ua.includes('Android')) return 'Android';
+                    if (ua.includes('iOS')) return 'iOS';
+                    return '未知';
+                })(),
+                '浏览器': (() => {
+                    const ua = navigator.userAgent;
+                    if (ua.includes('Chrome')) return 'Chrome';
+                    if (ua.includes('Firefox')) return 'Firefox';
+                    if (ua.includes('Safari')) return 'Safari';
+                    if (ua.includes('Edge')) return 'Edge';
+                    return '未知';
+                })(),
+                '屏幕分辨率': `${window.screen.width}x${window.screen.height}`,
+                '窗口大小': `${window.innerWidth}x${window.innerHeight}`,
+                '当前URL': currentUrl,
+                '服务器地址': baseUrl
+            };
+            
+            let html = '';
+            for (const [key, value] of Object.entries(deviceInfo)) {
+                html += `
+                    <div class="info-item">
+                        <span class="info-label">${key}</span>
+                        <span class="info-value">${value}</span>
+                    </div>
+                `;
+            }
+            document.getElementById('deviceInfo').innerHTML = html;
+        }
+        
+        async function testNetworkStatus() {
+            const tests = [
+                { name: '页面访问', url: baseUrl },
+                { name: '健康检查', url: `${baseUrl}/health` },
+                { name: 'CSS文件', url: `${baseUrl}/static/css/style.css` },
+                { name: 'JS文件', url: `${baseUrl}/static/js/main.js` }
+            ];
+            
+            let html = '';
+            for (const test of tests) {
+                try {
+                    const startTime = Date.now();
+                    const response = await fetch(test.url, { method: 'GET', cache: 'no-cache' });
+                    const endTime = Date.now();
+                    const duration = endTime - startTime;
+                    
+                    if (response.ok) {
+                        html += `
+                            <div class="info-item">
+                                <span class="info-label">${test.name}</span>
+                                <div>
+                                    <span class="status success">✓ 正常</span>
+                                    <small style="margin-left: 8px;">${duration}ms</small>
+                                </div>
+                            </div>
+                        `;
+                    } else {
+                        html += `
+                            <div class="info-item">
+                                <span class="info-label">${test.name}</span>
+                                <span class="status error">✗ 错误 (${response.status})</span>
+                            </div>
+                        `;
+                        logError(`${test.name}: HTTP ${response.status}`);
+                    }
+                } catch (error) {
+                    html += `
+                        <div class="info-item">
+                            <span class="info-label">${test.name}</span>
+                            <span class="status error">✗ 连接失败</span>
+                        </div>
+                    `;
+                    logError(`${test.name}: ${error.message}`);
+                }
+            }
+            
+            document.getElementById('networkStatus').innerHTML = html;
+        }
+        
+        async function testResourceLoading() {
+            const resources = [
+                { name: 'CSS样式表', url: '/static/css/style.css' },
+                { name: 'JavaScript', url: '/static/js/main.js' }
+            ];
+            
+            let html = '';
+            for (const resource of resources) {
+                const fullUrl = baseUrl + resource.url;
+                try {
+                    const startTime = Date.now();
+                    const response = await fetch(fullUrl);
+                    const endTime = Date.now();
+                    const duration = endTime - startTime;
+                    
+                    if (response.ok) {
+                        const size = response.headers.get('content-length') || '未知';
+                        html += `
+                            <div>
+                                <div class="info-item">
+                                    <span class="info-label">${resource.name}</span>
+                                    <span class="status success">✓ 加载成功</span>
+                                </div>
+                                <div class="progress-bar">
+                                    <div class="progress-fill" style="width: 100%"></div>
+                                </div>
+                                <small style="color: #666;">
+                                    大小: ${(parseInt(size)/1024).toFixed(2)}KB | 耗时: ${duration}ms
+                                </small>
+                            </div>
+                        `;
+                    } else {
+                        html += `
+                            <div class="info-item">
+                                <span class="info-label">${resource.name}</span>
+                                <span class="status error">✗ 加载失败 (${response.status})</span>
+                            </div>
+                        `;
+                        logError(`${resource.name}: HTTP ${response.status}`);
+                    }
+                } catch (error) {
+                    html += `
+                        <div class="info-item">
+                            <span class="info-label">${resource.name}</span>
+                            <span class="status error">✗ 连接失败</span>
+                        </div>
+                    `;
+                    logError(`${resource.name}: ${error.message}`);
+                }
+            }
+            
+            document.getElementById('resourceTests').innerHTML = html;
+        }
+        
+        async function testAPIConnection() {
+            try {
+                const response = await fetch(`${baseUrl}/chat`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: 'test', session_id: 'debug' })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    document.getElementById('apiTests').innerHTML = `
+                        <div class="info-item">
+                            <span class="info-label">API连接</span>
+                            <span class="status success">✓ 正常</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">响应数据</span>
+                            <span class="info-value">${JSON.stringify(data).substring(0, 50)}...</span>
+                        </div>
+                    `;
+                } else {
+                    document.getElementById('apiTests').innerHTML = `
+                        <div class="info-item">
+                            <span class="info-label">API连接</span>
+                            <span class="status error">✗ 错误 (${response.status})</span>
+                        </div>
+                    `;
+                    logError(`API: HTTP ${response.status}`);
+                }
+            } catch (error) {
+                document.getElementById('apiTests').innerHTML = `
+                    <div class="info-item">
+                        <span class="info-label">API连接</span>
+                        <span class="status error">✗ 连接失败</span>
+                    </div>
+                `;
+                logError(`API: ${error.message}`);
+            }
+        }
+        
+        function showSuggestions() {
+            const suggestions = [
+                '📶 确认手机和电脑连接到同一个WiFi网络',
+                '🔄 清除手机浏览器缓存并重新加载',
+                '📱 尝试使用不同的浏览器（Chrome/Safari）',
+                '🔗 确认访问地址正确：' + baseUrl,
+                '🛡️ 检查手机是否启用了VPN或防火墙',
+                '📡 尝试重启手机WiFi',
+                '💻 确认电脑防火墙允许5000端口入站',
+                '⏰ 确认Flask服务器正在运行'
+            ];
+            
+            let html = '';
+            suggestions.forEach(suggestion => {
+                html += `<div class="tip" style="margin-bottom: 8px;">${suggestion}</div>`;
+            });
+            
+            document.getElementById('suggestions').innerHTML = html;
+        }
+        
+        async function runAllTests() {
+            errors.length = 0;
+            document.getElementById('errorLogCard').style.display = 'none';
+            document.getElementById('errorLog').textContent = '';
+            
+            getDeviceInfo();
+            await testNetworkStatus();
+            await testResourceLoading();
+            await testAPIConnection();
+            showSuggestions();
+        }
+        
+        function goToMainApp() {
+            window.location.href = baseUrl;
+        }
+        
+        // 页面加载时自动运行测试
+        window.addEventListener('load', runAllTests);
+    </script>
+</body>
+</html>
